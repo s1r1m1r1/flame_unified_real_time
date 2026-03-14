@@ -1,0 +1,26 @@
+name: flame_unified_real_time
+description: High-performance Synchronized State Architecture components for Flame.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.11.0 <4.0.0"
+  flutter: ">=3.41.0"
+
+dependencies:
+  flame:
+    path: /Users/today/Desktop/flame/packages/flame
+  flutter:
+    sdk: flutter
+  meta: ^1.12.0
+  vector_math: ^2.1.4
+
+dev_dependencies:
+  flame_test:
+    path: /Users/today/Desktop/flame/packages/flame_test
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
+dependency_overrides:
+  flame:
+    path: /Users/today/Desktop/flame/packages/flame
