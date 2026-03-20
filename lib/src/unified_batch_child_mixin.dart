@@ -17,6 +17,13 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   static ui.Rect? _cachedVisibleRect;
   bool isVisible = true;
 
+  /// Optional override for sorting position. If null, uses [getBatchSortPosition].
+  Vector2? batchSortPosition;
+
+  /// Optional relative priority offset within the batch.
+  /// Adding 0.1 to a turret ensures it stays above a base with the same integer priority.
+  double batchSubPriority = 0.0;
+
   /// Whether the properties of this sprite (source, scale, image) are static.
   /// If true, some per-frame checks are skipped.
   bool batchStatic = false;
@@ -28,6 +35,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   Vector2? _lastSortPos;
   double _lastRotation = -1000.0;
   final Vector2 _lastOffset = Vector2.zero();
+  Vector2? _lastSpriteOffset;
 
   /// Registers this component with a [UnifiedSpriteBatchComponent].
   void registerWithBatch(
@@ -65,8 +73,10 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
       scale: scl,
       rotation: absoluteAngle,
       color: (this as HasPaint).paint.color,
-      priority: priority, // Use standard priority
+      priority: (priority + batchSubPriority).toDouble(), // Use standard priority + sub-priority
       sortPosition: sortPos,
+      spriteOffset: getSpriteOffset(),
+      logicalSize: getSpriteOriginalSize(),
     );
     _lastResetToken = parent.resetToken;
   }
@@ -171,6 +181,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
     ui.Rect? src;
     Vector2? scl;
     Vector2? sortPos;
+    Vector2? sprOff;
 
     if (!batchStatic || _lastSource == null) {
       img = _getCurrentImage();
@@ -198,6 +209,8 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
     if (parent.depthSort) {
       sortPos = getBatchSortPosition();
     }
+    
+    sprOff = getSpriteOffset();
 
     parent.updateInstance(
       id,
@@ -209,8 +222,10 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
       rotation: curRotation,
       color: (this as HasPaint).paint.color,
       isVisible: isVisible,
-      priority: priority,
+      priority: (priority + batchSubPriority).toDouble(),
       sortPosition: sortPos,
+      spriteOffset: sprOff,
+      logicalSize: getSpriteOriginalSize(),
       // Note: anchor changes are rare, we don't pass them every frame to avoid anchor.toVector2()
     );
 
@@ -240,27 +255,43 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
     return null;
   }
 
+  /// Returns the internal offset of the current sprite (e.g. from an atlas).
+  /// Subclasses should override this if they use [TexturePackerSprite].
+  Vector2 getSpriteOffset() => Vector2.zero();
+
+  /// Returns the original (logical) size of the sprite before trimming.
+  /// Subclasses should override this if they use [TexturePackerSprite].
+  /// Defaults to the current source rect size if not overridden.
+  Vector2 getSpriteOriginalSize() {
+     final src = _getCurrentSource();
+     if (src == null) return size;
+     return Vector2(src.width, src.height);
+  }
+
   /// Returns the logical position used for sorting in the batch.
   /// Defaults to searching for [HasBatchSortPosition] in parents,
   /// then falling back to world position ([absolutePosition]).
   /// Override this to provide grid coordinates for exact sorting.
   Vector2 getBatchSortPosition() {
+    if (batchSortPosition != null) return batchSortPosition!;
     if (batchStatic && _lastSortPos != null) return _lastSortPos!;
     
     // Default to bottom-center of the component (the "feet") for robust Z-sorting
     final pos = absolutePosition;
     _lastSortPos ??= Vector2.zero();
     _lastSortPos!.setValues(
-      pos.x + size.x * (0.5 - anchor.x),
-      pos.y + size.y * (1.0 - anchor.y),
+      pos.x + size.x * (0.5 - anchor.x) * absoluteScale.x,
+      pos.y + size.y * (1.0 - anchor.y) * absoluteScale.y,
     );
     return _lastSortPos!;
   }
 
   Vector2 _getBatchScale(ui.Rect? source) {
     if (source == null || source.width == 0) return absoluteScale;
-    // Batch scale should account for the size difference between source rect and component size.
-    final baseScale = size.x / source.width;
+    // Batch scale should account for the size difference between the logical frame 
+    // and the component size.
+    final orig = getSpriteOriginalSize();
+    final baseScale = size.x / orig.x;
     return Vector2(baseScale * absoluteScale.x, baseScale * absoluteScale.y);
   }
 
