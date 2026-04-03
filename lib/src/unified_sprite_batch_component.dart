@@ -34,7 +34,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
   set colorFilter(ui.ColorFilter? value) => _paint.colorFilter = value;
 
   final List<ui.Image?> images = [];
-  late Float32List sourcesBuffer = Float32List(0); // [l, t, r, b]
   late Float32List offsetsBuffer = Float32List(0); // [x, y]
   late Float32List scalesBuffer = Float32List(0); // [x, y]
   late Float32List anchorsBuffer = Float32List(0); // [x, y]
@@ -61,7 +60,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
     final newImages = List<ui.Image?>.filled(newSize - oldLen, null);
     images.addAll(newImages);
 
-    sourcesBuffer = _copyFloat32(sourcesBuffer, newSize * 4);
     offsetsBuffer = _copyFloat32(offsetsBuffer, newSize * 2);
     scalesBuffer = _copyFloat32(scalesBuffer, newSize * 2);
     anchorsBuffer = _copyFloat32(anchorsBuffer, newSize * 2);
@@ -135,8 +133,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
     Vector2? spriteOffset,
     Vector2? logicalSize,
     bool isVisible = true,
-    bool flipX = false,
-    bool flipY = false,
   }) {
     int id;
     if (freeSlots.isNotEmpty) {
@@ -168,8 +164,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
       spriteOffset?.y ?? 0.0,
       logicalSize?.x,
       logicalSize?.y,
-      flipX,
-      flipY,
     );
 
     _isSortDirty = true;
@@ -204,8 +198,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
     double sprOffY,
     double? logW,
     double? logH,
-    bool flipX,
-    bool flipY,
   ) {
     if (image != null) images[id] = image;
 
@@ -219,25 +211,11 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
 
     if (source != null) {
       final sIdx = id * 4;
-      sourcesBuffer[sIdx + 0] = source.left;
-      sourcesBuffer[sIdx + 1] = source.top;
-      sourcesBuffer[sIdx + 2] = source.right;
-      sourcesBuffer[sIdx + 3] = source.bottom;
-
       // Flip logic via source rect coordinates
       double l = source.left;
       double t = source.top;
       double r = source.right;
       double b = source.bottom;
-
-      if (flipX) {
-        l = source.right;
-        r = source.left;
-      }
-      if (flipY) {
-        t = source.bottom;
-        b = source.top;
-      }
 
       rectsBuffer[sIdx + 0] = l;
       rectsBuffer[sIdx + 1] = t;
@@ -395,8 +373,6 @@ class UnifiedSpriteBatchComponent extends Component with HasGameReference {
             (logicalSizesBuffer[id * 2 + 1] >= 0
                 ? logicalSizesBuffer[id * 2 + 1]
                 : null),
-        flipX,
-        flipY,
       );
     }
   }

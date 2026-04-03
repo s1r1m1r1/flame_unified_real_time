@@ -12,6 +12,23 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   /// Whether this component should skip its update cycle when off-screen.
   bool batchCulling = true;
 
+  /// Whether this component is allowed to be rendered via the batch.
+  /// If false, it will fall back to standard Flame rendering (allowing decorators).
+  bool _isBatchingEnabled = true;
+  bool get isBatchingEnabled => _isBatchingEnabled;
+  set isBatchingEnabled(bool value) {
+    if (_isBatchingEnabled == value) return;
+    _isBatchingEnabled = value;
+    if (!_isBatchingEnabled) {
+      final parent = _batchParent;
+      final id = _instanceId;
+      if (parent != null && id != null) {
+        parent.removeInstance(id);
+      }
+      _instanceId = null;
+    }
+  }
+
   // Static frame cache to avoid redundant visibility checks across 10k+ components
   static int _lastFrameTick = -1;
   static ui.Rect? _cachedVisibleRect;
@@ -106,8 +123,10 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   @override
   void update(double dt) {
     bool needsRegistration =
-        _instanceId == null ||
-        (_batchParent != null && _lastResetToken != _batchParent!.resetToken);
+        isBatchingEnabled &&
+        (_instanceId == null ||
+            (_batchParent != null &&
+                _lastResetToken != _batchParent!.resetToken));
 
     if (needsRegistration && _batchParent != null) {
       registerWithBatch(_batchParent!);
@@ -308,7 +327,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
 
   @override
   void render(ui.Canvas canvas) {
-    if (isBatched) {
+    if (isBatched && isBatchingEnabled) {
       // The component's own visuals (like Sprite or Animation) are handled by the batch parent.
       return;
     }
