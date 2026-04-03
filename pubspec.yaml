@@ -1,6 +1,7 @@
 name: flame_unified_real_time
 description: High-performance Synchronized State Architecture components for Flame.
 version: 0.1.0
+license: MIT
 publish_to: none
 resolution: workspace
 
@@ -10,6 +11,7 @@ environment:
 
 dependencies:
   flame: any
+  flame_texturepacker: any
 
   flutter:
     sdk: flutter

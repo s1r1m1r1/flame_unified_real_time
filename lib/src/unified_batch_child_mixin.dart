@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flame/components.dart';
+import 'package:flame_texturepacker/flame_texturepacker.dart';
 import 'unified_sprite_batch_component.dart';
 
 /// A mixin for [PositionComponent]s that want to delegate their rendering
@@ -52,7 +53,6 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   Vector2? _lastSortPos;
   double _lastRotation = -1000.0;
   final Vector2 _lastOffset = Vector2.zero();
-  Vector2? _lastSpriteOffset;
 
   /// Registers this component with a [UnifiedSpriteBatchComponent].
   void registerWithBatch(
@@ -90,7 +90,8 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
       scale: scl,
       rotation: absoluteAngle,
       color: (this as HasPaint).paint.color,
-      priority: (priority + batchSubPriority).toDouble(), // Use standard priority + sub-priority
+      priority: (priority + batchSubPriority)
+          .toDouble(), // Use standard priority + sub-priority
       sortPosition: sortPos,
       spriteOffset: getSpriteOffset(),
       logicalSize: getSpriteOriginalSize(),
@@ -190,9 +191,10 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
     final curRotation = absoluteAngle;
 
     // Fast check for movement
-    final moved = _lastOffset.x != curOffset.x || 
-                 _lastOffset.y != curOffset.y || 
-                 _lastRotation != curRotation;
+    final moved =
+        _lastOffset.x != curOffset.x ||
+        _lastOffset.y != curOffset.y ||
+        _lastRotation != curRotation;
 
     if (!moved && batchStatic && isVisible) return;
 
@@ -228,7 +230,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
     if (parent.depthSort) {
       sortPos = getBatchSortPosition();
     }
-    
+
     sprOff = getSpriteOffset();
 
     parent.updateInstance(
@@ -253,14 +255,27 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   }
 
   ui.Rect? _getCurrentSource() {
+    Sprite? sprite;
     if (this is SpriteAnimationComponent) {
       final ticker = (this as SpriteAnimationComponent).animationTicker;
-      if (ticker == null) return null;
-      return ticker.getSprite().src;
+      if (ticker != null) sprite = ticker.getSprite();
     } else if (this is SpriteComponent) {
-      return (this as SpriteComponent).sprite?.src;
+      sprite = (this as SpriteComponent).sprite;
     }
-    return null;
+
+    if (sprite == null) return null;
+
+    if (sprite is TexturePackerSprite) {
+      final region = sprite.region;
+      // For drawRawAtlas, we must use the actual texel rect.
+      return ui.Rect.fromLTWH(
+        region.left,
+        region.top,
+        region.width,
+        region.height,
+      );
+    }
+    return sprite.src;
   }
 
   ui.Image? _getCurrentImage() {
@@ -282,9 +297,22 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   /// Subclasses should override this if they use [TexturePackerSprite].
   /// Defaults to the current source rect size if not overridden.
   Vector2 getSpriteOriginalSize() {
-     final src = _getCurrentSource();
-     if (src == null) return size;
-     return Vector2(src.width, src.height);
+    Sprite? sprite;
+    if (this is SpriteAnimationComponent) {
+      final ticker = (this as SpriteAnimationComponent).animationTicker;
+      if (ticker != null) sprite = ticker.getSprite();
+    } else if (this is SpriteComponent) {
+      sprite = (this as SpriteComponent).sprite;
+    }
+
+    if (sprite is TexturePackerSprite) {
+      final r = sprite.region;
+      return Vector2(r.originalWidth.toDouble(), r.originalHeight.toDouble());
+    }
+
+    final src = _getCurrentSource();
+    if (src == null) return size;
+    return Vector2(src.width, src.height);
   }
 
   /// Returns the logical position used for sorting in the batch.
@@ -294,7 +322,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
   Vector2 getBatchSortPosition() {
     if (batchSortPosition != null) return batchSortPosition!;
     if (batchStatic && _lastSortPos != null) return _lastSortPos!;
-    
+
     // Default to bottom-center of the component (the "feet") for robust Z-sorting
     final pos = absolutePosition;
     _lastSortPos ??= Vector2.zero();
@@ -307,7 +335,7 @@ mixin UnifiedBatchChildMixin on PositionComponent, HasPaint {
 
   Vector2 _getBatchScale(ui.Rect? source) {
     if (source == null || source.width == 0) return absoluteScale;
-    // Batch scale should account for the size difference between the logical frame 
+    // Batch scale should account for the size difference between the logical frame
     // and the component size.
     final orig = getSpriteOriginalSize();
     final baseScale = size.x / orig.x;
